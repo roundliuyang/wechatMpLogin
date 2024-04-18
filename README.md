@@ -1,12 +1,14 @@
 博客
 https://segmentfault.com/a/1190000043395324
 
-# 前台
+
+
+# 前台 Angular
 进入到web文件夹
 npm install 安装依赖
 ng s启动项目
 
-# 后台
+# 后台 springboot
 进入api目录
 后台mvn install 安装依赖
 进入application.yml文件，配置好数据库和公众号信息
