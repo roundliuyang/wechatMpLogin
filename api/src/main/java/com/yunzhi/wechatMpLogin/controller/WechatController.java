@@ -38,6 +38,9 @@ public class WechatController {
 
 
   /**
+   * 请填写接口配置信息，此信息需要你有自己的服务器资源，填写的URL需要正确响应微信发送的Token验证，请阅读消息接口使用指南。
+   * URL：http://yly.free.idcfengye.com/api/wechat
+   * 
    * 对接 API，注意返回类型为void，不能为String。原样返回的数据需要直接使用HttpServletResponse
    * 微信官方说明：https://developers.weixin.qq.com/doc/offiaccount/Basic_Information/Access_Overview.html
    *

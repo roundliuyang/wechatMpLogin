@@ -78,14 +78,7 @@ public class WeChatUser implements UserDetails {
   public String getUsername() {
     return this.user.getUsername();
   }
-
-  public boolean isRegistered() {
-    return registered;
-  }
-
-  public void setRegistered(boolean registered) {
-    this.registered = registered;
-  }
+  
 
   @Override
   public boolean isAccountNonExpired() {
@@ -122,14 +115,7 @@ public class WeChatUser implements UserDetails {
   public void setAppId(String appId) {
     this.appId = appId;
   }
-
-  public String getUnionId() {
-    return unionId;
-  }
-
-  public void setUnionId(String unionId) {
-    this.unionId = unionId;
-  }
+  
 
   private class SessionKeyJsonView {
   }

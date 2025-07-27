@@ -28,6 +28,7 @@ public class WebSocketService {
    * @param xAuthToken http token
    */
   public void bindToXAuthToken(String wsAuthToken, String xAuthToken) {
+    System.out.println("wsAuthToken:" + wsAuthToken   + "---------------------xAuthToken:" + xAuthToken);
     this.map.put(wsAuthToken, new TokenWithLastUsedTime(xAuthToken));
   }
 

@@ -14,6 +14,10 @@ public class HeaderAndParamHttpSessionStrategy extends HeaderHttpSessionStrategy
    */
   private String headerName = "x-auth-token";
 
+  /*
+     通过这个自定义的 HeaderAndParamHttpSessionStrategy，Spring Security 或其他会话管理功能将使用 HTTP 请求中的
+     x-auth-token（从请求头或查询参数中获取）来代替默认的通过 Cookie 传递的会话 ID（JSESSIONID）
+   */
   @Override
   public String getRequestedSessionId(HttpServletRequest request) {
     String token = request.getHeader(this.headerName);

@@ -81,22 +81,63 @@ public class UserServiceImpl implements UserService, UserDetailsService {
       if (this.logger.isDebugEnabled()) {
         this.logger.info("1. 生成用于回调的sceneStr，请将推送给微信，微信当推送带有sceneStr的二维码，用户扫码后微信则会把带有sceneStr的信息回推过来");
       }
+      // 生成临时二维码场景值，之后微信回调信息会回发该值，根据此值调用handler
+      // 例如ScanHandler的handleKey函数， 那里的wxMpXmlMessage.getEventKey()的值，就是该场景值
+      String sceneStr = UUID.randomUUID().toString();
 
+      // 通过 wxMpService 获取微信公众平台的二维码服务，生成一个临时二维码，使用 sceneStr 作为二维码的场景值，且二维码有效期为 10 分钟（即 10 * 60 秒）。
+      // WxMpQrCodeTicket 是微信公众平台提供的二维码票据，它包含了生成二维码所需的信息
+      WxMpQrCodeTicket wxMpQrCodeTicket = this.wxMpService.getQrcodeService().qrCodeCreateTmpTicket(sceneStr, 10 * 60);
+      
+      // 通过 Spring Security 获取当前认证的用户的 UserDetails。Authentication 是 Spring Security 用于表示认证信息的对象，通过 SecurityContextHolder.getContext().getAuthentication() 获取当前认证的用户信息。
+      // userDetails 包含了当前用户的信息（如用户名、密码等）
       Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
       UserDetails userDetails = (UserDetails) authentication.getPrincipal();
 
-      final Map<String, String> variables = new HashMap<>();
-      variables.put("username", userDetails.getUsername());
-      variables.put("sessionId", sessionId);
+      /*
+        这段代码通过 addHandler 方法将一个处理器（WeChatMpEventKeyHandler）绑定到 sceneStr 上。当用户扫描二维码时，微信会回调这个处理器。
+        getExpired() 方法判断二维码是否过期（10分钟后过期）。
+        handle() 方法在用户扫码并回调时执行，完成绑定操作。
+       */
+      this.wxMpService.addHandler(sceneStr, new WeChatMpEventKeyHandler() {
+        long beginTime = System.currentTimeMillis();
+        private Logger logger = LoggerFactory.getLogger(this.getClass());
 
-      String requestUrl = UserServiceImpl.addParam("http:/localhost:8082/request/getQrCode", variables);
+        @Override
+        public boolean getExpired() {
+          return System.currentTimeMillis() - beginTime > 10 * 60 * 1000;
+        }
 
-      System.setProperty("https.protocols", "TLSv1,TLSv1.1,TLSv1.2,SSLv3");
+        @Override
+        public WxMpXmlOutMessage handle(WxMpXmlMessage wxMpXmlMessage, WeChatUser weChatUser) {
+          if (this.logger.isDebugEnabled()) {
+            this.logger.info("用户扫码后通过sceneStr触发该方法。1. 向前台发送已扫描成功。 2. 向微信发送绑定成功的信息");
+          }
+          // 微信用户的id
+          String openid = wxMpXmlMessage.getFromUser();
+          if (openid == null) {
+            this.logger.error("openid is null");
+          }
 
-      RestTemplate restTemplate = new RestTemplate();
-      String bindQrCode = restTemplate.getForObject(requestUrl, String.class, variables);
+          // 将微信用户与系统用户（通过 userDetails）绑定
+          bindWeChatUserToUser(weChatUser, userDetails);
 
-      return bindQrCode;
+          // 使用 WebSocket 将扫码成功的通知发送到前端。通过 sessionId 获取到 WebSocket 的 token，然后使用 simpMessagingTemplate.convertAndSendToUser() 方法将信息推送给前端的某个用户。
+          // 这里推送的是 openid，告知前端用户扫描并绑定成功。
+          String wsToken = webSocketService.getWsToken(sessionId);
+          this.logger.info("wsToken:" + wsToken);
+          simpMessagingTemplate.convertAndSendToUser(wsToken,
+                  "/stomp/scanBindUserQrCode",
+                  openid);
+
+          return new TextBuilder().build(String.format("您当前的微信号已与系统用户 %s 成功绑定。", userDetails.getUsername()),
+                  wxMpXmlMessage,
+                  null);
+        }
+      });
+      
+      // 通过 wxMpQrCodeTicket.getTicket() 获取二维码的票据，然后调用 qrCodePictureUrl() 方法返回二维码的图片 URL，用于展示给用户
+      return this.wxMpService.getQrcodeService().qrCodePictureUrl(wxMpQrCodeTicket.getTicket());
     } catch (Exception e) {
       this.logger.error("获取临时公众号图片时发生错误：" + e.getMessage());
     }
@@ -104,18 +145,11 @@ public class UserServiceImpl implements UserService, UserDetailsService {
   }
 
   @Transactional
-  @Override
-  public void bindWeChatUserToUser(WeChatUser weChatUser, String username, String sessionId, String openId) {
+  public void bindWeChatUserToUser(WeChatUser weChatUser, UserDetails userDetails) {
     WeChatUser wechat = this.weChatUserRepository.findById(weChatUser.getId()).get();
-    User user = this.userRepository.findByUsername(username).get();
+    User user = this.userRepository.findByUsername(userDetails.getUsername()).get();
     wechat.setUser(user);
     this.weChatUserRepository.save(wechat);
-
-    String wsToken = webSocketService.getWsToken(sessionId);
-    this.logger.info("wsToken:" + wsToken);
-    simpMessagingTemplate.convertAndSendToUser(wsToken,
-            "/stomp/scanBindUserQrCode",
-            openId);
   }
 
 
